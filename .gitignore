@@ -4,5 +4,6 @@
 .settings/
 lnk_msp430g2553.cmd
 targetConfigs/
+Debug/
 Position.sublime-project
 Position.sublime-workspace
