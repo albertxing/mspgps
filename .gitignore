@@ -1,6 +1,7 @@
 .ccsproject
 .cproject
 .project
+.launches/
 .settings/
 lnk_msp430g2553.cmd
 targetConfigs/
