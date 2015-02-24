@@ -1,0 +1,8 @@
+.ccsproject
+.cproject
+.project
+.settings/
+lnk_msp430g2553.cmd
+targetConfigs/
+Position.sublime-project
+Position.sublime-workspace
