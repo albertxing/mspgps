@@ -5,23 +5,29 @@ int main (void) {
 
 	// Main application loop
 	while (1) {
+		lock = 2;
+
 		// Send trigger pulse
-		P1OUT |= TRIGGER;
+		P2OUT |= TRIGGER;
 		__delay_cycles(10);
-		P1OUT &= ~TRIGGER;
+		P2OUT &= ~TRIGGER;
+
+		TACTL = TACLR | TASSEL_2 | MC_2 | TAIE;
+		TACCTL1 = 0;
+		mult = 0;
 
 		// Wait for echo
 		__bis_SR_register(LPM0_bits + GIE);
 
-		float result = (end_time - start_time + 0xffffp0 * (mult - 1)) / 470;
+		float result = (end2 - end1) / 235.1;
 		transmit((char*)&result);
 
 		// Toggle LED
 		P1OUT ^= LED1;
 
 		// Delay between measurements
-		TACCR0 = 1000;						// Period
-		TACCR1 = 1000;						// Capture/compare at end
+		TACCR0 = 2000;						// Period
+		TACCR1 = 2000;						// Capture/compare at end
 		TACTL = TACLR | TASSEL_1 | MC_1;	// TACLK = ACLK, Up mode.
 		TACCTL1 = CCIE;						// TACCTL0
 		__bis_SR_register(LPM3_bits + GIE);
@@ -38,14 +44,15 @@ void setup () {
 	BCSCTL2 |= DIVM_3;			// divide by 8 for mclk, operate at 1MHz
 
 	// Set up LEDs
-	P1DIR |= LED1 + LED2 + TRIGGER;
-	P1OUT &= ~(LED1 + LED2 + TRIGGER + ECHOS);
-	P1OUT |= ECHO;
+	P1DIR |= LED1;
+	P1OUT &= ~LED1;
 
-	P1DIR &= ~(ECHO + ECHOS);
-	P1REN = ECHO + ECHOS;
-	P1IES = ECHO;
-	P1IE = ECHO + ECHOS;
+	P2DIR |= TRIGGER;
+	P2DIR &= ~(ECHO1 + ECHO2);
+	P2REN = ECHO1 + ECHO2;
+	P2IES = ECHO1 + ECHO2;
+	P2IE = ECHO1 + ECHO2;
+
 	P1DIR |= TXD;
 	P1OUT |= TXD;
 
@@ -84,30 +91,29 @@ __interrupt void ta1_isr(void) {
 		break;
 	case 10:
 		// Timer overflow, increment mult
-		mult++;
+		if (mult++ > 22)
+			__bic_SR_register_on_exit(LPM0_bits);
 		TACTL &= ~TAIFG;
 		break;
 	}
 }
 
-#pragma vector=PORT1_VECTOR
-__interrupt void PORT1_ISR(void) {
-	if (P1IFG & ECHO) {
-		if (!P1IES) {
-			// TACLK = SMCLK, Continuous mode, enable interrupts
-			TACTL = TACLR | TASSEL_2 | MC_2 | TAIE;
-			start_time = TAR;
-			P1IES |= ECHO;
-			P1IFG &= ~ECHO;
-			TACCTL1 = 0;
-			mult = 0;
-		} else {
-			end_time = TAR;
-			TACTL = 0;
-			P1IES &= ~ECHO;
-			P1IFG &= ~ECHO;
+#pragma vector=PORT2_VECTOR
+__interrupt void PORT2_ISR(void) {
+	if (P2IFG & ECHO1) {
+		end1 = TAR + (mult - 1) * 0xffffu;
+		P2IFG &= ~ECHO1;
+		lock--;
+	}
 
-			__bic_SR_register_on_exit(LPM0_bits);
-		}
+	if (P2IFG & ECHO2) {
+		end2 = TAR + (mult - 1) * 0xffffu;
+		P2IFG &= ~ECHO2;
+		lock--;
+	}
+
+	if (!lock) {
+		TACTL = 0;
+		__bic_SR_register_on_exit(LPM0_bits);
 	}
 }

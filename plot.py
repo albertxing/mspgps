@@ -6,15 +6,14 @@ import gtk
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_gtkagg import FigureCanvasGTKAgg as FigureCanvas
 
-port = "COM3"
+port = "COM5"
 	
 def quit_app(event):
-	outFile.close()
 	ser.close()
 	quit()
 
 try:
-	# It seems that sometimes the port doesn"t work unless 
+	# It seems that sometimes the port doesn't work unless 
 	# you open it first with one speed, then change it to the correct value
 	ser = serial.Serial(port, 2600, timeout = 0.050)
 	ser.flushInput()
@@ -35,7 +34,7 @@ times = np.arange(0, 50, 1.0) # 50 from 0 to 49.
 #create a plot:
 fig = Figure()
 ax = fig.add_subplot(111, xlabel = "Time Step", ylabel = "Distance (cm)")
-ax.set_ylim(0, 200) # set limits of y axis.
+ax.set_ylim(-200, 200) # set limits of y axis.
 
 canvas = FigureCanvas(fig) # put the plot onto a canvas
 win.add(canvas) # put the canvas in the window
