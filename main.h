@@ -11,8 +11,8 @@
 
 unsigned int mult;
 unsigned int lock;
-int end1;
-int end2;
+unsigned int end1;
+unsigned int end2;
 
 void setup ();
 void transmit (char*);

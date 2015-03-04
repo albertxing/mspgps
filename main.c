@@ -6,21 +6,24 @@ int main (void) {
 	// Main application loop
 	while (1) {
 		lock = 2;
+		P2IES &= ~(ECHO1 + ECHO2);
 
 		// Send trigger pulse
 		P2OUT |= TRIGGER;
 		__delay_cycles(10);
 		P2OUT &= ~TRIGGER;
 
-		TACTL = TACLR | TASSEL_2 | MC_2 | TAIE;
-		TACCTL1 = 0;
-		mult = 0;
-
 		// Wait for echo
 		__bis_SR_register(LPM0_bits + GIE);
 
-		float result = (end2 - end1) / 235.1;
-		transmit((char*)&result);
+		float da = (float)end1 / 235;
+		float db = (float)end2 / 235;
+
+		float x = (da * da - db * db + 225) / 30.0f - 7.5f;
+		float y = da * da - (x + 7.5f) * (x + 7.5f);
+
+		transmit((char*)&x);
+		transmit((char*)&y);
 
 		// Toggle LED
 		P1OUT ^= LED1;
@@ -50,7 +53,7 @@ void setup () {
 	P2DIR |= TRIGGER;
 	P2DIR &= ~(ECHO1 + ECHO2);
 	P2REN = ECHO1 + ECHO2;
-	P2IES = ECHO1 + ECHO2;
+	P2IES = 0;
 	P2IE = ECHO1 + ECHO2;
 
 	P1DIR |= TXD;
@@ -101,15 +104,29 @@ __interrupt void ta1_isr(void) {
 #pragma vector=PORT2_VECTOR
 __interrupt void PORT2_ISR(void) {
 	if (P2IFG & ECHO1) {
-		end1 = TAR + (mult - 1) * 0xffffu;
+		if (P2IN & ECHO1) {
+			TACTL = TACLR | TASSEL_2 | MC_2 | TAIE;
+			TACCTL1 = 0;
+			mult = 0;
+			P2IES |= ECHO1;
+		} else {
+			end1 = TAR + (mult - 1) * 0xffffu;
+			lock--;
+		}
 		P2IFG &= ~ECHO1;
-		lock--;
 	}
 
 	if (P2IFG & ECHO2) {
-		end2 = TAR + (mult - 1) * 0xffffu;
+		if (P2IN & ECHO2) {
+			TACTL = TACLR | TASSEL_2 | MC_2 | TAIE;
+			TACCTL1 = 0;
+			mult = 0;
+			P2IES |= ECHO2;
+		} else {
+			end2 = TAR + (mult - 1) * 0xffffu;
+			lock--;
+		}
 		P2IFG &= ~ECHO2;
-		lock--;
 	}
 
 	if (!lock) {
