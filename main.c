@@ -84,7 +84,7 @@ void transmit (char* result) {
 
 // used as loop delay
 #pragma vector=TIMER0_A1_VECTOR
-__interrupt void ta1_isr(void) {
+__interrupt void TA1_ISR (void) {
 	switch (TAIV) {
 	case 2:
 		TACCTL1 &= ~CCIFG;
