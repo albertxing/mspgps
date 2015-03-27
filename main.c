@@ -5,25 +5,33 @@ int main (void) {
 
 	// Main application loop
 	while (1) {
-		lock = 2;
-		P2IES &= ~(ECHO1 + ECHO2);
+		TACTL = TACLR | TASSEL_2 | MC_2;
+		TACCTL1 = 0;
 
-		// Send trigger pulse
-		P2OUT |= TRIGGER;
-		__delay_cycles(10);
-		P2OUT &= ~TRIGGER;
+		for (n = 0; n < 3; n++) {
+			// Send trigger pulse
+			P2OUT &= ~TRIG1;
+			P2IFG = 0;
+			P2IE |= ECHO;
+			start[n] = TAR;
 
-		// Wait for echo
-		__bis_SR_register(LPM0_bits + GIE);
+			// Wait for echo
+			__bis_SR_register(LPM0_bits + GIE);
 
-		float da = (float)end1 / 235;
-		float db = (float)end2 / 235;
+			while (TAR % 2000 > 20);
+		}
 
-		float x = (da * da - db * db + 225) / 30.0f - 7.5f;
-		float y = da * da - (x + 7.5f) * (x + 7.5f);
+		TACTL = 0;
 
-		transmit((char*)&x);
-		transmit((char*)&y);
+		da = (float)(end[0] - start[0]) / 30;
+		db = (float)(end[1] - start[1]) / 30;
+		dc = (float)(end[2] - start[2]) / 30;
+
+//		float x = (da * da - db * db + 225) / 30.0f - 7.5f;
+//		float y = da * da - (x + 7.5f) * (x + 7.5f);
+//
+//		transmit((char*)&x);
+//		transmit((char*)&y);
 
 		// Toggle LED
 		P1OUT ^= LED1;
@@ -41,20 +49,21 @@ void setup () {
 	WDTCTL = WDTPW + WDTHOLD;	// Stop WDT
 
 	// Calibrate clocks
-	BCSCTL1 = CALBC1_8MHZ;		// use 8MHz clock
-	DCOCTL = CALDCO_8MHZ;
+	BCSCTL1 = CALBC1_1MHZ;		// use 8MHz clock
+	DCOCTL = CALDCO_1MHZ;
 	BCSCTL2 &= ~(DIVS_3);		// no divider for smclk
-	BCSCTL2 |= DIVM_3;			// divide by 8 for mclk, operate at 1MHz
+	BCSCTL2 &= ~(DIVM_3);		// no divider for mclk
 
 	// Set up LEDs
 	P1DIR |= LED1;
 	P1OUT &= ~LED1;
 
-	P2DIR |= TRIGGER;
-	P2DIR &= ~(ECHO1 + ECHO2);
-	P2REN = ECHO1 + ECHO2;
+	P2DIR |= TRIG1 + TRIG2 + TRIG3;
+	P2DIR &= ~ECHO;
+	P2REN |= ECHO;
+	P2OUT |= TRIG1 + TRIG2 + TRIG3;
+	P2OUT &= ~ECHO;
 	P2IES = 0;
-	P2IE = ECHO1 + ECHO2;
 
 	P1DIR |= TXD;
 	P1OUT |= TXD;
@@ -84,7 +93,7 @@ void transmit (char* result) {
 
 // used as loop delay
 #pragma vector=TIMER0_A1_VECTOR
-__interrupt void TA1_ISR (void) {
+__interrupt void TA1_ISR(void) {
 	switch (TAIV) {
 	case 2:
 		TACCTL1 &= ~CCIFG;
@@ -94,43 +103,26 @@ __interrupt void TA1_ISR (void) {
 		break;
 	case 10:
 		// Timer overflow, increment mult
-		if (mult++ > 22)
+		/*
+		if (mult++ > 20) {
+			end[n] = 0;
+			P2IE = 0;
+			P2OUT |= TRIG1 + TRIG2 + TRIG3;
 			__bic_SR_register_on_exit(LPM0_bits);
+		}
 		TACTL &= ~TAIFG;
+		*/
 		break;
 	}
 }
 
 #pragma vector=PORT2_VECTOR
 __interrupt void PORT2_ISR(void) {
-	if (P2IFG & ECHO1) {
-		if (P2IN & ECHO1) {
-			TACTL = TACLR | TASSEL_2 | MC_2 | TAIE;
-			TACCTL1 = 0;
-			mult = 0;
-			P2IES |= ECHO1;
-		} else {
-			end1 = TAR + (mult - 1) * 0xffffu;
-			lock--;
-		}
-		P2IFG &= ~ECHO1;
-	}
-
-	if (P2IFG & ECHO2) {
-		if (P2IN & ECHO2) {
-			TACTL = TACLR | TASSEL_2 | MC_2 | TAIE;
-			TACCTL1 = 0;
-			mult = 0;
-			P2IES |= ECHO2;
-		} else {
-			end2 = TAR + (mult - 1) * 0xffffu;
-			lock--;
-		}
-		P2IFG &= ~ECHO2;
-	}
-
-	if (!lock) {
-		TACTL = 0;
+	if (P2IFG & ECHO) {
+		end[n] = TAR;
+		P2IFG &= ~ECHO;
+		P2IE = 0;
+		P2OUT |= TRIG1 + TRIG2 + TRIG3;
 		__bic_SR_register_on_exit(LPM0_bits);
 	}
 }
